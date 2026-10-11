@@ -1,0 +1,277 @@
+РОЗВ'ЯЗОК ДО enemy.txt — C# / GODOT 4.7
+
+Спочатку спробуй пройти завдання в enemy.txt. Тут три повні файли коду.
+Копіюй лише вміст між BEGIN CODE та END CODE до відповідного .cs.
+Позначки BEGIN/END, пояснення та назви секцій не є C#-кодом.
+
+Підключення:
+  levels/GridNavigation.cs — УЖЕ прикріплений до Level01;
+  enemies/Enemy.cs — прикріпити до кореня Enemy сцени enemies/runner.tscn;
+  levels/EnemySpawner.cs — прикріпити до вузла EnemySpawner у Level01.
+Це три окремі файли: не вставляй усі класи в один наявний скрипт.
+GridNavigation.cs доповнює/замінює нинішній порожній шаблон, а не створюється
+ще раз в іншій папці. Сцену та скрипти ти підключаєш за розділами 3–4 уроку.
+
+Дерево рівня:
+  Level01 [GridNavigation.cs]
+    Ground [TileMapLayer]
+    Walls [TileMapLayer]
+    Details [TileMapLayer]
+    BuildZones [TileMapLayer]
+    Spawn [Marker2D]
+    Base [Marker2D]
+    Camera2D
+    Enemies [Node2D]
+    EnemySpawner [Node, EnemySpawner.cs]
+      SpawnTimer [Timer, Autostart=false]
+Однакові трансформації й Tile Size шарів Ground/Walls обов'язкові.
+У сцені ворога: Enemy [Node2D, Z Index=4] > Sprite2D [runner.png, Scale=0.06].
+Після Build у EnemySpawner признач Enemy Scene = res://enemies/runner.tscn,
+Spawn Count = 5, Spawn Interval = 2. На Enemy залиш Speed = 100.
+Збережи обидві сцени. Запускай level_01.tscn через F6.
+
+
+======================================================================
+res://levels/GridNavigation.cs
+BEGIN CODE
+using Godot;
+using System.Collections.Generic;
+
+public partial class GridNavigation : Node2D
+{
+    private readonly AStarGrid2D _grid = new();
+    private TileMapLayer _ground;
+    private TileMapLayer _walls;
+
+    public override void _Ready()
+    {
+        _ground = GetNode<TileMapLayer>("Ground");
+        _walls = GetNode<TileMapLayer>("Walls");
+        Rect2I region = _ground.GetUsedRect();
+        if (region.Size.X <= 0 || region.Size.Y <= 0)
+        {
+            GD.PushError("Ground порожній: спочатку намалюй підлогу.");
+            return;
+        }
+
+        _grid.Region = region;
+        _grid.DiagonalMode = AStarGrid2D.DiagonalModeEnum.Never;
+        _grid.Update(); // Спочатку створюємо сітку, потім позначаємо перешкоди.
+        for (int y = region.Position.Y; y < region.End.Y; y++)
+        {
+            for (int x = region.Position.X; x < region.End.X; x++)
+            {
+                Vector2I cell = new(x, y);
+                bool noFloor = _ground.GetCellSourceId(cell) == -1;
+                bool wall = _walls.GetCellSourceId(cell) != -1;
+                _grid.SetPointSolid(cell, noFloor || wall);
+            }
+        }
+
+        // _Ready батька виконується після _Ready дітей.
+        // Запускаємо спавнер тут: тепер сітка гарантовано готова.
+        GetNode<EnemySpawner>("EnemySpawner").StartSpawning(this);
+    }
+
+    public List<Vector2> FindPath(Vector2 startWorld, Vector2 finishWorld)
+    {
+        var result = new List<Vector2>();
+        Vector2I start = _ground.LocalToMap(_ground.ToLocal(startWorld));
+        Vector2I finish = _ground.LocalToMap(_ground.ToLocal(finishWorld));
+
+        if (!_grid.IsInBoundsv(start) || !_grid.IsInBoundsv(finish))
+        {
+            GD.PushError("Spawn або Base поза межами Ground.");
+            return result;
+        }
+        if (_grid.IsPointSolid(start) || _grid.IsPointSolid(finish))
+        {
+            GD.PushError("Spawn або Base стоїть на стіні чи клітинці без підлоги.");
+            return result;
+        }
+
+        var cells = _grid.GetIdPath(start, finish);
+        if (cells.Count == 0)
+        {
+            GD.PushError("Між Spawn і Base немає відкритого маршруту.");
+            return result;
+        }
+
+        // GetIdPath повертає клітинки, а ворогові потрібні світові позиції.
+        foreach (Vector2I cell in cells)
+            result.Add(_ground.ToGlobal(_ground.MapToLocal(cell)));
+
+        // Дійти саме до маркера, навіть якщо він не в центрі останньої клітинки.
+        result.Add(finishWorld);
+        return result;
+    }
+}
+END CODE
+
+======================================================================
+res://enemies/Enemy.cs
+BEGIN CODE
+using Godot;
+using System.Collections.Generic;
+
+public partial class Enemy : Node2D
+{
+    [Export] public float Speed { get; set; } = 100.0f;
+    [Signal] public delegate void ReachedBaseEventHandler();
+
+    private List<Vector2> _path = new();
+    private int _targetIndex;
+    private bool _finished;
+
+    public void Setup(Vector2 spawnPosition, List<Vector2> path)
+    {
+        GlobalPosition = spawnPosition;
+        _path = new List<Vector2>(path); // Кожен ворог отримує власний список.
+        _targetIndex = 0;
+        _finished = false;
+        if (_path.Count == 0 || Speed <= 0.0f)
+        {
+            GD.PushError("Ворогу потрібен непорожній маршрут і Speed > 0.");
+            _finished = true;
+            QueueFree();
+        }
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (_finished || _path.Count == 0)
+            return;
+
+        float remaining = Mathf.Max(Speed, 0.0f) * (float)delta;
+        while (remaining > 0.0f && _targetIndex < _path.Count)
+        {
+            Vector2 target = _path[_targetIndex];
+            float distance = GlobalPosition.DistanceTo(target);
+            if (distance <= remaining)
+            {
+                GlobalPosition = target;
+                remaining -= distance;
+                _targetIndex++;
+            }
+            else
+            {
+                GlobalPosition = GlobalPosition.MoveToward(target, remaining);
+                remaining = 0.0f;
+            }
+        }
+
+        if (_targetIndex >= _path.Count)
+            Finish();
+    }
+
+    private void Finish()
+    {
+        if (_finished)
+            return;
+        _finished = true;
+        EmitSignal(SignalName.ReachedBase);
+        QueueFree(); // Видалення наприкінці кадру, а не посеред обробки сигналу.
+    }
+}
+END CODE
+
+======================================================================
+res://levels/EnemySpawner.cs
+BEGIN CODE
+using Godot;
+using System.Collections.Generic;
+
+public partial class EnemySpawner : Node
+{
+    [Export] public PackedScene EnemyScene { get; set; }
+    [Export] public int SpawnCount { get; set; } = 5;
+    [Export] public double SpawnInterval { get; set; } = 2.0;
+
+    private Timer _timer;
+    private Node2D _enemies;
+    private Vector2 _spawnPosition;
+    private List<Vector2> _path = new();
+    private int _spawned;
+    private int _arrived;
+    private bool _started;
+
+    public void StartSpawning(GridNavigation navigation)
+    {
+        if (_started)
+            return;
+        if (EnemyScene == null || SpawnCount <= 0 || SpawnInterval <= 0.0)
+        {
+            GD.PushError("Признач Enemy Scene; Spawn Count та Spawn Interval мають бути > 0.");
+            return;
+        }
+
+        _timer = GetNode<Timer>("SpawnTimer");
+        _enemies = navigation.GetNode<Node2D>("Enemies");
+        _spawnPosition = navigation.GetNode<Marker2D>("Spawn").GlobalPosition;
+        Vector2 finish = navigation.GetNode<Marker2D>("Base").GlobalPosition;
+        _path = navigation.FindPath(_spawnPosition, finish);
+        if (_path.Count == 0)
+            return; // Не створюємо нерухомих ворогів, якщо шлях відсутній.
+
+        _started = true;
+        _timer.WaitTime = SpawnInterval;
+        _timer.OneShot = false;
+        _timer.Timeout += SpawnOne;
+        SpawnOne(); // Перший ворог одразу, решта — за таймером.
+        if (_spawned < SpawnCount)
+            _timer.Start();
+    }
+
+    private void SpawnOne()
+    {
+        if (_spawned >= SpawnCount)
+        {
+            _timer.Stop();
+            return;
+        }
+
+        Enemy enemy = EnemyScene.Instantiate<Enemy>();
+        _enemies.AddChild(enemy);
+        enemy.ReachedBase += OnEnemyReachedBase;
+        enemy.Setup(_spawnPosition, _path);
+        _spawned++;
+        GD.Print($"Створено ворога {_spawned}/{SpawnCount}");
+        if (_spawned >= SpawnCount)
+            _timer.Stop();
+    }
+
+    private void OnEnemyReachedBase()
+    {
+        _arrived++;
+        GD.Print($"До бази дійшло {_arrived}/{SpawnCount}");
+    }
+}
+END CODE
+
+ЯК ЧИТАТИ РОЗВ'ЯЗОК
+GridNavigation: заповнення сітки → перевірки → клітинки маршруту → світові точки.
+Enemy: Setup запам'ятовує маршрут; _PhysicsProcess витрачає бюджет руху;
+Finish одноразово повідомляє про прибуття та видаляє екземпляр.
+EnemySpawner: перевіряє параметри, запускає таймер, створює екземпляри,
+передає маршрут кожному, зупиняє спавн після заданої кількості.
+
+ОБМЕЖЕННЯ ЦЬОГО РОЗВ'ЯЗКУ
+Це статична сітка й Node2D-рух: без фізичного розштовхування ворогів,
+динамічних перешкод, здоров'я та бою. Будь-який тайл на Walls блокує всю
+клітинку; Details і BuildZones не блокують шлях. Не додавай спавн у _Process.
+
+ОФІЦІЙНА ДОВІДКА
+AStarGrid2D: https://docs.godotengine.org/en/stable/classes/class_astargrid2d.html
+TileMapLayer: https://docs.godotengine.org/en/stable/classes/class_tilemaplayer.html
+Node2D: https://docs.godotengine.org/en/stable/classes/class_node2d.html
+Vector2: https://docs.godotengine.org/en/stable/classes/class_vector2.html
+Timer: https://docs.godotengine.org/en/stable/classes/class_timer.html
+PackedScene: https://docs.godotengine.org/en/stable/classes/class_packedscene.html
+
+ПЕРЕВІРКА РОЗВ'ЯЗКУ
+Код трьох блоків перевірено окремим збиранням Godot.NET.Sdk 4.7.0:
+0 помилок, 0 попереджень компілятора.
+У тимчасовій копії твоєї мапи виконано запуск Godot 4.7 .NET без вікна:
+створилося рівно 5 ворогів, усі 5 повідомили про прибуття до Base.
+Це перевірка виконання коду; покрокові натискання й вигляд у твоєму
+редакторі потрібно пройти самому. Робочі сцени та .cs проєкту не змінені.

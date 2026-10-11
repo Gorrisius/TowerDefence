@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://c18kj761l288e"]
+
+[ext_resource type="Script" uid="uid://bid82o4tsa44x" path="res://towers/rotating_tower/TurretBullet.cs" id="1"]
+[ext_resource type="Texture2D" uid="uid://rcs16hx0v0go" path="res://towers/rotating_tower/assets/bullet.png" id="2"]
+[ext_resource type="Texture2D" uid="uid://bsyunemii7qgg" path="res://towers/rotating_tower/assets/flash.png" id="3"]
+
+[node name="TurretBullet" type="Node2D" unique_id=1677423264]
+z_index = 7
+script = ExtResource("1")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=928444943]
+scale = Vector2(0.025, 0.025)
+texture = ExtResource("2")
+centered = false
+offset = Vector2(-1110, -630)
+
+[node name="Impact" type="Sprite2D" parent="." unique_id=286557492]
+visible = false
+scale = Vector2(0.02, 0.02)
+texture = ExtResource("3")
