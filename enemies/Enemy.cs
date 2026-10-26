@@ -2,6 +2,7 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
 public partial class Enemy : Node2D
 {
@@ -17,9 +18,14 @@ public partial class Enemy : Node2D
 	private int _targetIndex, _revision = -1;
 	private bool _finished;
 	private double _attackCooldown;
+	private AnimatedSprite2D _animatedSprite;
 	public bool CanBeTargeted => !_finished && Health > 0 && !IsQueuedForDeletion();
 
-	public override void _Ready() => AddToGroup("enemies");
+	public override void _Ready(){
+		AddToGroup("enemies");
+		_animatedSprite  = GetNode<AnimatedSprite2D>("Runner");
+		_animatedSprite.Play("walk north-east");
+	} 
 
 	public void Setup(Vector2 spawnPosition, GridNavigation navigation)
 	{

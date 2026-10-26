@@ -1,0 +1,29 @@
+{
+  "name": "Bloodroot (FREE)",
+  "version": "1.0",
+  "canvas": [
+    112,
+    112
+  ],
+  "ground_y": 96,
+  "center_x": 56,
+  "directions": [
+    "south",
+    "south-east",
+    "east",
+    "north-east",
+    "north",
+    "north-west",
+    "west",
+    "south-west"
+  ],
+  "states": [
+    "Stand",
+    "Idle",
+    "Walk"
+  ],
+  "colors": [
+    "Original"
+  ],
+  "fps": 10
+}

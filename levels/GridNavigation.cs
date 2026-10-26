@@ -109,6 +109,5 @@ public partial class GridNavigation : Node2D
 			result.Add(finishWorld);
 		}
 		return result;  
-
 	}
 }
