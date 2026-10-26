@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://walls/Wall.cs" id="1"]
+[ext_resource type="Texture2D" path="res://lessons/wall/assets/wall_top.png" id="2"]
+
+[node name="Wall" type="Node2D"]
+script = ExtResource("1")
+MaxHealth = 100
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2")
+scale = Vector2(0.125, 0.125)
