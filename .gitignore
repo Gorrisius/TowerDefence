@@ -1,3 +1,21 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+lessons/
+2026-09-27/
+2026-09-27/
+2026-09-21/
+.codex/
+graphify-out/
+.agents/
+AGENTS.md
+ASSET_PROMPTS.md
+ASSETS.md
+part_map.txt
+instruction.txt
+instructions.txt
+documentation.txt
+enemy_solved.txt
+enemy.txt
+plans.txt
+project_context.md

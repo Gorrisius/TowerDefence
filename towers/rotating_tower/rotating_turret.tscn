@@ -11,6 +11,7 @@
 [node name="RotatingTurret" type="Node2D" unique_id=252256265]
 z_index = 8
 script = ExtResource("1_wjgqp")
+Damage = 2
 BulletScene = ExtResource("2_2c4gd")
 RedLampTexture = ExtResource("4_rjbyv")
 GreenLampTexture = ExtResource("6_rgn7p")
